@@ -1,0 +1,14 @@
+[
+    {
+        "type": "international",
+        "montant": 1000,
+        "numero": 890,
+        "statut": "VALIDE"
+    },
+    {
+        "type": "national",
+        "montant": 1000,
+        "numero": 778909090,
+        "statut": "ANNULE"
+    }
+]

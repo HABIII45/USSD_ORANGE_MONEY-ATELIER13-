@@ -1,7 +1,71 @@
 import re
+import json
 liste=[]
-dictionnaire={'solde':20000,'code_secret':123} 
+achats_credit = []
+achats_forfait = []
+transferts = []
+dernier_transfert =None
+
+import json
+
+dictionnaire = {}
+
+
+
+
+    
+def charger_donnees():
+    global dictionnaire
+    try:
+        with open("dictionnaire.json", "r") as f:
+            dictionnaire = json.load(f)
+    except FileNotFoundError:
+        dictionnaire = {'solde': 20000, 'code_secret': 123}
+        mise_a_jour()
+
+
+
+   
+         
+       
+
+def mise_a_jour():
+    with open("dictionnaire.json", "w") as f:
+        json.dump(dictionnaire, f, indent=4)
+
+
+   
 liste.append(dictionnaire)
+
+
+def dernier_montant_transfert():
+    try:
+        with open("dictionnaire_transfert.json", "r") as f:
+            transferts = json.load(f)
+            return transferts[-1]['montant']
+    except (FileNotFoundError, IndexError):
+        return 0
+
+def mise_a_jour_transfert():
+    with open("dictionnaire_transfert.json", "w") as f:
+        json.dump(transferts, f, indent=4)
+
+try:
+ with open("dictionnaire_transfert.json","r") as f:
+   transferts=json.load(f)
+except FileNotFoundError:
+   mise_a_jour_transfert()  
+     
+def mise_a_jour_credit():
+   with open("dictionnaire_achat_credit.json","w") as f:
+    json.dump(achats_credit,f,indent=4)
+    
+try:
+ with open("dictionnaire_achat_credit.json","r") as f:
+   achats_credit=json.load(f)
+except FileNotFoundError:
+   mise_a_jour_credit()
+       
 def code_om():
      
     nbre_tentative=0
@@ -28,29 +92,42 @@ def naviguation():
      elif choice=="0":
        print("merci et a bientot")
      break 
+
 def debiter_compte(montant):
+    global dictionnaire
     if montant <= dictionnaire['solde']:
         dictionnaire['solde'] -= montant
+        mise_a_jour()
         return True
     else:
         print("Solde insuffisant")
         return False
-def annuler_transfert(montant_transfert):
+    
    
-   print("faire votre choix 1 ou 2")
-   print("1.annuler le transfert")
-   print("2.QUITTER")
-   choix_menu=input("choisir 1 ou 2: ")
-   if choix_menu=="2":
-      menu_principal()
-   elif choix_menu=="1":
-      code_om()
-   dictionnaire['solde'] +=montant_transfert
-   print("transfert annuler voici le solde de votre compte omoney: ",liste[0]["solde"])
+def annuler_transfert():
+    global dictionnaire, transferts
 
- 
-  
-  
+    if not transferts:
+        print("Aucun transfert à annuler")
+        return
+
+    dernier = transferts[-1]   
+
+    if dernier['statut'] == "ANNULE":
+        print("Ce transfert est déjà annulé")
+        return
+
+    code_om()
+
+    dernier['statut'] = "ANNULE"
+    dictionnaire['solde'] += dernier['montant']
+
+    mise_a_jour()
+    mise_a_jour_transfert()
+
+    print("Transfert annulé")
+    print("Nouveau solde :", dictionnaire['solde'])
+
               
         
         
@@ -58,13 +135,20 @@ def consulter_solde():
   
     print("consultation du solde de votre compte O_Money")
     code_om()
-    print(f"voici le montant de votre compte", liste[0]['solde'],"cfa") 
+    print("Solde :", dictionnaire['solde'], "CFA")
+
     return
     
  
+    
+
+   
+   
+
    
 
 def achat_credit():
+   global achats_credit
    while True:
     print("Veuillez choisir une option")
     print("1.acheter du credit sur mon numero")
@@ -80,22 +164,27 @@ def achat_credit():
         else:
           print("veuillez saisir que des chiffres ")
        if debiter_compte(montant_credit):
-         dict_achat={"choix_credit":choix_credit,"montant_credit":montant_credit}
-         liste.append(dict_achat)  
-         print(f"Rechargement reussi pour le montant de: " ,liste[1]['montant_credit'], "cfa sur  votre numero")
-        
-         print("Opération réussie")
-         break
-       else:
-         print("Opération annulée")
+             achat = {
+            "type": "credit",
+            "destinataire": "774663451",
+            "montant": montant_credit
+            }
+       achats_credit.append(achat)  
+       mise_a_jour_credit()
+
+          
+       print(achats_credit)
+       
+
+       print("Rechargement réussi")
+       print("Montant :", montant_credit, "CFA")
+
+       break
+    
          
         
+      
        
-       
-   
-       
-       
-           
     elif choix_credit=="2":
          code_om()
          while True:
@@ -112,15 +201,25 @@ def achat_credit():
              montant_credit=int(montant_credit)
              
              if debiter_compte(montant_credit):
-              dict_achat={"choix_credit":choix_credit,"num_credit":num_credit,"montant_credit":montant_credit}
-              liste.append(dict_achat)  
-              print(f"Rechargement reussi pour un montant de : " ,liste[1]['montant_credit'], " cfa sur le ",liste[1]['num_credit'])
-        
+              achat = {
+                "type": "credit",
+                "destinataire": num_credit,
+                "montant": montant_credit
+               }
+              
+   
+              
+             achats_credit.append(achat)  
+             mise_a_jour_credit()
+             print("Rechargement réussi")
+             print("Numéro :", num_credit)
+             print("Montant :", montant_credit, "CFA")
              print("Opération réussie")
              break
           else:
            print("Opération annulée")
           break
+         break
     else:
         print("choix indisponible")
    
@@ -129,6 +228,8 @@ def achat_credit():
   
 #achat_credit()
 def transfert():
+  global dernier_transfert
+ 
   while True:
     print("Veuillez choisir une option")
     print("1.national")
@@ -153,11 +254,17 @@ def transfert():
         
        
           if debiter_compte(montant_transfert):
-             dict_transfert={"choix_transfert":choix_tranfert,"montant_transfert":montant_transfert,"num_transfert":num_transfert}
-             liste.append(dict_transfert)  
-             print(f"Transfert sur le  ",liste[1]["num_transfert"],"pour le montant de: ",liste[1]["montant_transfert"],"nouveau motant: ",liste[0]["solde"])
-        
-        
+            dernier_transfert = {
+                "type": "national",
+                "montant": montant_transfert,
+                "numero": num_transfert,
+                 "statut": "VALIDE"
+            }
+          transferts.append(dernier_transfert)
+            
+          mise_a_jour_transfert()
+          
+         
           print("Opération réussie")
           
       
@@ -168,56 +275,45 @@ def transfert():
         
       
          
-          if annuler_transfert(montant_transfert):
-           dict_transfert={"choix_transfert":choix_tranfert,"montant_transfert":montant_transfert,"num_transfert":num_transfert}
-           liste.append(dict_transfert)  
-           print(f"Transfert sur le  ",liste[1]["num_transfert"]," annulé pour le montant de: ",liste[1]["montant_transfert"],"nouveau solde: ",liste[0]["solde"])
-        
+          
+           
           break
     elif choix_tranfert=="2":
          code_om()
          while True:
           num_transfert=input("Veuillez saisir un numero avec un indicatif du mali(+223),du niger(): ")
-          if re.fullmatch(r'(+223|+227)', num_transfert):
+          if num_transfert.isnumeric():
              num_transfert=int(num_transfert)
-             break
+             
           else:
            print("veuillez saisir que des chiffres")
-           if debiter_compte(montant_transfert):
-              dict_transfert={"choix_transfert":choix_tranfert,"montant_credit":montant_transfert}
-              liste.append(dict_transfert)  
-              print(f"Transfert sur le  ",liste[1]["num_transfert"],"pour le montant de: ",liste[1]["montant_transfert"])
-        
-        
-              print("Opération réussie")
            
-              
-              break
-              
-           else:
-            print("Opération annulée")
-           break
+         
         
-         while True:
+         
           montant_transfert=int(input("saisir le montant à tranférer"))
           if debiter_compte(montant_transfert):
-              dict_transfert={"choix_transfert":choix_tranfert,"montant_transfert":montant_transfert}
-              liste.append(dict_transfert)  
-              print(f"Transfert sur le  ",liste[1]["num_transfert"],"pour le montant de: ",liste[1]["montant_transfert"])
-        
-              print("Opération réussie")
-              break
+            dernier_transfert = {
+                "type": "international",
+                "montant": montant_transfert,
+                "numero": num_transfert,
+                 "statut": "VALIDE"
+                
+               }
+            transferts.append(dernier_transfert)
+            
+            mise_a_jour_transfert()
+            mise_a_jour()
+            
+            break
           else:
             print("Opération annulée")
         
           
    
       
-         if annuler_transfert(montant_transfert):
-             dict_transfert={"choix_transfert":choix_tranfert,"montant_transfert":montant_transfert,"num_transfert":num_transfert}
-             liste.append(dict_transfert)  
-             print(f"Transfert sur le  ",liste[1]["num_transfert"]," annulé pour le montant de: ",liste[1]["montant_transfert"],"nouveau solde: ",liste[0]["solde"])
-             break
+         
+            break
     elif choix_tranfert=="3":
        print("aucun montant envoyer,une annulation ne peut etre effectuer")  
          
@@ -246,67 +342,97 @@ def achat_forfait():
        code_om()
        montant_forfait=500
        if debiter_compte(montant_forfait):
-              dict_forfait={"choix_forfait":choix_forfait,"montant_forfait":montant_forfait}
-              liste.append(dict_forfait)  
-              print(liste)
+             forfait = {
+            "type": "forfait-500",
+            "destinataire": "774663451",
+            "montant": montant_forfait
+            }
+             achats_forfait.append(forfait)
+       
         
-              print("Opération réussie")
-              break
-       else:
+       print("Opération réussie")
+       break
+    else:
             print("Opération annulée")
     if choix_forfait=="2":
          code_om()
       
          montant_forfait=1000
          if debiter_compte(montant_forfait):
-              dict_forfait={"choix_forfait":choix_forfait,"montant_forfait":montant_forfait}
-              liste.append(dict_forfait)  
-              print(liste)
+             forfait = {
+            "type": "forfait-1000",
+            "destinataire": "774663451",
+            "montant": montant_forfait
+            }
+             achats_forfait.append(forfait)
+       
         
-              print("Opération réussie")
-              break
-         else:
+         print("Opération réussie")
+         break
+    else:
             print("Opération annulée")
     if choix_forfait=="3":
          code_om()
       
          montant_forfait=2000
          if debiter_compte(montant_forfait):
-              dict_forfait={"choix_forfait":choix_forfait,"montant_forfait":montant_forfait}
-              liste.append(dict_forfait)  
-              print(liste)
-        
-              print("Opération réussie")
-              break
-         else:
+             forfait = {
+            "type": "forfait-500",
+            "destinataire": "774663451",
+            "montant": montant_forfait
+            }
+             achats_forfait.append(forfait)
+       
+         print("Opération réussie")
+         break
+    else:
             print("Opération annulée")
     break
   return liste
-     
+charger_donnees()    
 def menu_principal():
     print("Bienvenue sur le service Orange Money")
     print("1. Consulter votre solde")
     print("2. Acheter du crédit")
     print("3. Effectuer un transfert")
     print("4. Annuler un transfert")
+    print("5.afficher l historique des transactions")
+    print("6.quitter")
     choix_fait = input("Saisir votre choix : ")
 
     if choix_fait == "1":
         consulter_solde()
+        
         naviguation()
     elif choix_fait == "2":
+        mise_a_jour_credit()
         achat_credit()
+        mise_a_jour()
+        
         naviguation()
+       
     elif choix_fait == "3":
         transfert()
+       
         naviguation()
+        
     elif choix_fait=="4":
-       annuler_transfert(liste[1]["montant_transfert"])
+       
+       annuler_transfert()
+      
+       mise_a_jour_transfert()
+      
+    elif choix_fait=="5":
+       for i in transferts:
+          print("type de transaction:",i['type'],",montant de la transaction:",i['montant'],",numero tel:",i['numero'])
+    elif choix_fait=="6":
+       print("merci!a bientot")   
     else:
         print("Choix indisponible")
          
    
 def main():
+    
     print("=*=*=*=* USSD ORANGE MONEY =*=*=*=*=")
     print("Composer #144# pour accéder au service")
 
